@@ -21,12 +21,14 @@ seed = 42
 labels = pd.read_csv("../input/training-labels.csv")
 train_df, val_df = train_test_split(labels, test_size=0.2,stratify=labels['Drscore'], random_state = seed)
 BATCH_SIZE = 2**5
-NUM_WORKERS = 6
-LEARNING_RATE = 1e-4
-NUM_EPOCHS = 10
-LOG_FREQ = 30
+NUM_WORKERS = 4
+LEARNING_RATE = 5e-5
+LR_STEP = 8
+LR_FACTOR = 0.5
+NUM_EPOCHS = 30
+LOG_FREQ = 50
 TIME_LIMIT = 10 * 60 * 60
-RESIZE = 512
+RESIZE = 350
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -36,6 +38,8 @@ class ImageDataset(Dataset):
 
         self.df = dataframe
         self.mode = mode
+
+        print(f"mode: {mode}, shape: {self.df.shape}")
 
         transforms_list = [
             transforms.Resize(RESIZE),
@@ -47,7 +51,7 @@ class ImageDataset(Dataset):
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomChoice([
                     transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
-                    transforms.RandomAffine(degrees=(0,180), translate=(0.1, 0.1),
+                    transforms.RandomAffine(degrees=(0,360), translate=(0.1, 0.1),
                                             scale=(0.8, 1.2),
                                             resample=Image.BILINEAR)
                 ])
@@ -186,7 +190,7 @@ def test(test_loader, model):
     predicts, confs, targets = inference(test_loader, model)
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
-    return cohen_kappa_score(targets, predicts)
+    return accuracy_score(targets, predicts), cohen_kappa_score(targets, predicts)
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
                validate=True):
@@ -199,6 +203,7 @@ def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
         if has_time_run_out():
             break
         train_res.append(train_acc)
+        lr_scheduler.step()
 
         if validate:
             test_acc = test(test_loader, model)
@@ -219,9 +224,9 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
-# model = EfficientNet.from_pretrained('efficientnet-b4', num_classes=5)
-model = EfficientNet.from_name('efficientnet-b2')
-model._fc = nn.Linear(model._fc.in_features, 5)
+model = EfficientNet.from_pretrained('efficientnet-b4', num_classes=5)
+# model = EfficientNet.from_name('efficientnet-b2')
+# model._fc = nn.Linear(model._fc.in_features, 5)
 
 if len(sys.argv) > 2:
 	model.load_state_dict(torch.load(sys.argv[2]))
@@ -229,7 +234,10 @@ if len(sys.argv) > 2:
 model = model.to(device)
 model = nn.DataParallel(model)
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=0.001)
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
+                                                   gamma=LR_FACTOR)
+
 global_start_time = time.time()
 train_res, test_res = train_loop(NUM_EPOCHS, train_loader, val_loader, model, criterion, optimizer)
 torch.save(model.state_dict(), sys.argv[1])

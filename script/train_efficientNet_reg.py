@@ -22,8 +22,8 @@ labels = pd.read_csv("../input/training-labels.csv")
 train_df, val_df = train_test_split(labels, test_size=0.2,stratify=labels['Drscore'], random_state = seed)
 BATCH_SIZE = 2**4
 NUM_WORKERS = 6
-LEARNING_RATE = 1e-4
-NUM_EPOCHS = 10
+LEARNING_RATE = 5e-5
+NUM_EPOCHS = 20
 LOG_FREQ = 30
 TIME_LIMIT = 10 * 60 * 60
 RESIZE = 512

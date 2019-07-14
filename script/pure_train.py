@@ -18,13 +18,13 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from efficientnet_pytorch import EfficientNet
 
 seed = 42
-BATCH_SIZE = 2**4
-NUM_WORKERS = 6
+BATCH_SIZE = 2**5
+NUM_WORKERS = 4
 LEARNING_RATE = 5e-5
-NUM_EPOCHS = 10
+NUM_EPOCHS = 12
 LOG_FREQ = 50
 TIME_LIMIT = 10 * 60 * 60
-RESIZE = 512
+RESIZE = 300
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -44,17 +44,14 @@ class ImageDataset(Dataset):
             transforms_list.extend([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomChoice([
-                    transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
-                    transforms.RandomAffine(degrees=15, translate=(0.1, 0.1),
-                                            scale=(0.8, 1.2),
+                    transforms.RandomAffine(degrees=(0,360), translate=(0.1, 0.1),
+                                            scale=(0.8, 1.1),
                                             resample=Image.BILINEAR)
                 ])
             ])
 
         transforms_list.extend([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                  std=[0.229, 0.224, 0.225]),
         ])
         self.transforms = transforms.Compose(transforms_list)
 
@@ -63,7 +60,7 @@ class ImageDataset(Dataset):
         filename = self.df['Filename'].values[index]
 
         directory = '../input/Test' if self.mode == 'test' else '../input/output_combined2'
-        sample = Image.open(f'./{directory}/{filename}')
+        sample = Image.open(f'./{directory}/gb_{filename}')
 
         assert sample.mode == 'RGB'
 
@@ -83,7 +80,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logging = True):
 
     lr_str = ''
 
-    for i, (input_, target) in tqdm(enumerate(train_loader)):
+    for i, (input_, target) in enumerate(tqdm(train_loader)):
         if i >= num_steps:
             break
 
@@ -119,3 +116,5 @@ optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 global_start_time = time.time()
 train_loop(NUM_EPOCHS, train_loader, model, criterion, optimizer)
 torch.save(model.state_dict(), sys.argv[1])
+
+os.system("sudo shutdown now")

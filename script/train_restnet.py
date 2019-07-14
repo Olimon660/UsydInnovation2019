@@ -24,7 +24,7 @@ labels = pd.read_csv("../input/training-labels.csv")
 train_df, val_df = train_test_split(labels, test_size=0.2,stratify=labels['Drscore'], random_state = seed)
 BATCH_SIZE = 2**7
 NUM_WORKERS = 6
-LEARNING_RATE = 5e-5
+LEARNING_RATE = 1e-3
 NUM_EPOCHS = 20
 LOG_FREQ = 20
 TIME_LIMIT = 4 * 60 * 60
@@ -47,8 +47,7 @@ class ImageDataset(Dataset):
             transforms_list.extend([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomChoice([
-                    transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
-                    transforms.RandomAffine(degrees=15, translate=(0.2, 0.2),
+                    transforms.RandomAffine(degrees=(0,360), translate=(0.1, 0.1),
                                             scale=(0.8, 1.2),
                                             resample=Image.BILINEAR)
                 ])
@@ -56,8 +55,6 @@ class ImageDataset(Dataset):
 
         transforms_list.extend([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                  std=[0.229, 0.224, 0.225]),
         ])
         self.transforms = transforms.Compose(transforms_list)
 
@@ -66,7 +63,7 @@ class ImageDataset(Dataset):
         filename = self.df['Filename'].values[index]
 
         directory = '../input/Test' if self.mode == 'test' else '../input/output_combined2'
-        sample = Image.open(f'./{directory}/{filename}')
+        sample = Image.open(f'./{directory}/gb_{filename}')
 
         assert sample.mode == 'RGB'
 
@@ -154,6 +151,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logging = True):
                         f'loss {losses.val:.4f} ({losses.avg:.4f})\t'
                         f'GAP {avg_score.val:.4f} ({avg_score.avg:.4f})'
                         + lr_str)
+            sys.stdout.flush()
         if has_time_run_out():
             break
 
@@ -218,7 +216,7 @@ def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
 def has_time_run_out():
     return time.time() - global_start_time > TIME_LIMIT - 1000
 
-model = torchvision.models.resnet34(pretrained=True)
+model = torchvision.models.resnet18()
 
 if len(sys.argv) > 2:
 	model.load_state_dict(torch.load(sys.argv[2]))
@@ -234,6 +232,6 @@ predicts, confs, targets = inference(val_loader, model)
 print(classification_report(targets.cpu(), predicts.cpu()))
 print(confusion_matrix(targets.cpu(), predicts.cpu()))
 print(cohen_kappa_score(targets.cpu(), predicts.cpu()))
-time.sleep(5)
-import os
+sys.stdout.flush()
+
 os.system('sudo shutdown now')
