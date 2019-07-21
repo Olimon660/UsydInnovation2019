@@ -224,10 +224,9 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
-# model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
+model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
 # model = torchvision.models.resnet50(pretrained=True)
-# model.fc = nn.Linear(model.fc.in_features, 1)
-model = EfficientNet.from_pretrained('efficientnet-b4', num_classes=1)
+model.fc = nn.Linear(model.fc.in_features, 1)
 
 if len(sys.argv) > 2:
 	model.load_state_dict(torch.load(sys.argv[2]))

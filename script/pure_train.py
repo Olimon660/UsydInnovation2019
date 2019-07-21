@@ -18,16 +18,19 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from efficientnet_pytorch import EfficientNet
 
 seed = 42
-BATCH_SIZE = 2**5
+BATCH_SIZE = 2**4
 NUM_WORKERS = 4
-LEARNING_RATE = 5e-5
-NUM_EPOCHS = 12
+LEARNING_RATE = 1e-4
+LR_STEP = 5
+LR_FACTOR = 0.5
+NUM_EPOCHS = 20
 LOG_FREQ = 50
 TIME_LIMIT = 10 * 60 * 60
-RESIZE = 300
+RESIZE = 512
+WD = 0.003
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
+print(f"RESIZE: {RESIZE}")
 class ImageDataset(Dataset):
     def __init__(self, dataframe, mode):
         assert mode in ['train', 'val', 'test']
@@ -44,6 +47,7 @@ class ImageDataset(Dataset):
             transforms_list.extend([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomChoice([
+                    transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
                     transforms.RandomAffine(degrees=(0,360), translate=(0.1, 0.1),
                                             scale=(0.8, 1.1),
                                             resample=Image.BILINEAR)
@@ -98,6 +102,7 @@ def train_loop(epochs, train_loader, model, criterion, optimizer,
                validate=True):
     for epoch in trange(1, epochs + 1):
         train(train_loader, model, criterion, optimizer, epoch, logging=True)
+        lr_scheduler.step()
 
     return
 
@@ -112,7 +117,9 @@ model = EfficientNet.from_pretrained('efficientnet-b4', num_classes=5)
 model = model.to(device)
 model = nn.DataParallel(model)
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
+                                                   gamma=LR_FACTOR)
 global_start_time = time.time()
 train_loop(NUM_EPOCHS, train_loader, model, criterion, optimizer)
 torch.save(model.state_dict(), sys.argv[1])

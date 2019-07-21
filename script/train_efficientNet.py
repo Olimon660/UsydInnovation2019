@@ -20,15 +20,16 @@ from efficientnet_pytorch import EfficientNet
 seed = 42
 labels = pd.read_csv("../input/training-labels.csv")
 train_df, val_df = train_test_split(labels, test_size=0.2,stratify=labels['Drscore'], random_state = seed)
-BATCH_SIZE = 2**5
+BATCH_SIZE = 2**4
 NUM_WORKERS = 4
 LEARNING_RATE = 5e-5
-LR_STEP = 8
+LR_STEP = 5
 LR_FACTOR = 0.5
-NUM_EPOCHS = 30
+NUM_EPOCHS = 20
 LOG_FREQ = 50
 TIME_LIMIT = 10 * 60 * 60
-RESIZE = 350
+RESIZE = 512
+WD = 0.003
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -190,7 +191,7 @@ def test(test_loader, model):
     predicts, confs, targets = inference(test_loader, model)
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
-    return accuracy_score(targets, predicts), cohen_kappa_score(targets, predicts)
+    return accuracy_score(targets, predicts), cohen_kappa_score(targets, predicts, weights="quadratic")
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
                validate=True):
@@ -206,9 +207,9 @@ def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
         lr_scheduler.step()
 
         if validate:
-            test_acc = test(test_loader, model)
+            test_acc, test_cohen = test(test_loader, model)
             test_res.append(test_acc)
-            print(f"validation score: {test_acc}")
+            print(f"validation score: {test_cohen}")
 
     return train_res, test_res
 
@@ -234,7 +235,7 @@ if len(sys.argv) > 2:
 model = model.to(device)
 model = nn.DataParallel(model)
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
                                                    gamma=LR_FACTOR)
 
@@ -244,7 +245,7 @@ torch.save(model.state_dict(), sys.argv[1])
 predicts, confs, targets = inference(val_loader, model)
 print(classification_report(targets.cpu(), predicts.cpu()))
 print(confusion_matrix(targets.cpu(), predicts.cpu()))
-print(cohen_kappa_score(targets.cpu(), predicts.cpu()))
+print(cohen_kappa_score(targets.cpu(), predicts.cpu(), weights = "quadratic"))
 sys.stdout.flush()
 time.sleep(5)
 

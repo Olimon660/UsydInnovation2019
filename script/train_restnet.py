@@ -1,6 +1,4 @@
 import numpy as np  # linear algebra
-import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
-
 import torch
 import torchvision
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
@@ -22,21 +20,26 @@ from efficientnet_pytorch import EfficientNet
 seed = 42
 labels = pd.read_csv("../input/training-labels.csv")
 train_df, val_df = train_test_split(labels, test_size=0.2,stratify=labels['Drscore'], random_state = seed)
-BATCH_SIZE = 2**7
-NUM_WORKERS = 6
+BATCH_SIZE = 2**5
+NUM_WORKERS = 4
 LEARNING_RATE = 1e-3
-NUM_EPOCHS = 20
-LOG_FREQ = 20
-TIME_LIMIT = 4 * 60 * 60
-RESIZE = 512
+LR_STEP = 5
+LR_FACTOR = 0.2
+NUM_EPOCHS = 25
+LOG_FREQ = 50
+TIME_LIMIT = 10 * 60 * 60
+RESIZE = 350
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
 class ImageDataset(Dataset):
     def __init__(self, dataframe, mode):
         assert mode in ['train', 'val', 'test']
 
         self.df = dataframe
         self.mode = mode
+
+        print(f"mode: {mode}, shape: {self.df.shape}")
 
         transforms_list = [
             transforms.Resize(RESIZE),
@@ -47,6 +50,7 @@ class ImageDataset(Dataset):
             transforms_list.extend([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomChoice([
+                    transforms.ColorJitter(0.2, 0.2, 0.2, 0.2),
                     transforms.RandomAffine(degrees=(0,360), translate=(0.1, 0.1),
                                             scale=(0.8, 1.2),
                                             resample=Image.BILINEAR)
@@ -55,6 +59,8 @@ class ImageDataset(Dataset):
 
         transforms_list.extend([
             transforms.ToTensor(),
+#            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+#                                  std=[0.229, 0.224, 0.225]),
         ])
         self.transforms = transforms.Compose(transforms_list)
 
@@ -107,14 +113,6 @@ class AverageMeter:
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
-
-train_dataset = ImageDataset(train_df, mode='train')
-val_dataset = ImageDataset(val_df, mode='val')
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,
-                          drop_last=True, shuffle=True, num_workers=NUM_WORKERS)
-
-val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
-                        shuffle=False, num_workers=NUM_WORKERS)
 
 def train(train_loader, model, criterion, optimizer, epoch, logging = True):
     batch_time = AverageMeter()
@@ -192,7 +190,7 @@ def test(test_loader, model):
     predicts, confs, targets = inference(test_loader, model)
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
-    return cohen_kappa_score(targets, predicts)
+    return accuracy_score(targets, predicts), cohen_kappa_score(targets, predicts)
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
                validate=True):
@@ -205,6 +203,7 @@ def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
         if has_time_run_out():
             break
         train_res.append(train_acc)
+        lr_scheduler.step()
 
         if validate:
             test_acc = test(test_loader, model)
@@ -216,7 +215,18 @@ def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
 def has_time_run_out():
     return time.time() - global_start_time > TIME_LIMIT - 1000
 
-model = torchvision.models.resnet18()
+train_dataset = ImageDataset(train_df, mode='train')
+val_dataset = ImageDataset(val_df, mode='val')
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
+                          drop_last=True,
+                          num_workers=NUM_WORKERS)
+
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
+                        shuffle=False, num_workers=NUM_WORKERS)
+
+model = torchvision.models.resnet50()
+model.fc = nn.Linear(model.fc.in_features, 5)
+# model._fc = nn.Linear(model._fc.in_features, 5)
 
 if len(sys.argv) > 2:
 	model.load_state_dict(torch.load(sys.argv[2]))
@@ -224,7 +234,10 @@ if len(sys.argv) > 2:
 model = model.to(device)
 model = nn.DataParallel(model)
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=0.001)
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
+                                                   gamma=LR_FACTOR)
+
 global_start_time = time.time()
 train_res, test_res = train_loop(NUM_EPOCHS, train_loader, val_loader, model, criterion, optimizer)
 torch.save(model.state_dict(), sys.argv[1])
@@ -233,5 +246,6 @@ print(classification_report(targets.cpu(), predicts.cpu()))
 print(confusion_matrix(targets.cpu(), predicts.cpu()))
 print(cohen_kappa_score(targets.cpu(), predicts.cpu()))
 sys.stdout.flush()
+time.sleep(5)
 
 os.system('sudo shutdown now')
