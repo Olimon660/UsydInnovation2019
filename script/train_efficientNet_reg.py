@@ -27,7 +27,7 @@ NUM_EPOCHS = 9
 LOG_FREQ = 50
 TIME_LIMIT = 10 * 60 * 60
 RESIZE = 350
-WD = 0.001
+WD = 0.0001
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cudnn.benchmark = True

@@ -18,16 +18,16 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from efficientnet_pytorch import EfficientNet
 
 seed = 42
-BATCH_SIZE = 2**6
+BATCH_SIZE = 2**5
 NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
-LR_STEP = 3
+LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 9
-LOG_FREQ = 50
+NUM_EPOCHS = 10
+LOG_FREQ = 100
 TIME_LIMIT = 10 * 60 * 60
 RESIZE = 350
-WD = 0.001
+WD = 5e-4
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cudnn.benchmark = True
@@ -184,7 +184,9 @@ def test(test_loader, model):
     predicts, targets = inference(test_loader, model)
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
+    rmse = np.sqrt(np.mean(np.square(predicts - targets)))
     print(confusion_matrix(targets, predicts))
+    print(f"val loss: {rmse}")
     return cohen_kappa_score(targets, predicts, weights="quadratic")
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
@@ -224,7 +226,8 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
-model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
+# model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
+model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
 # model = torchvision.models.resnet50(pretrained=True)
 model.fc = nn.Linear(model.fc.in_features, 1)
 
@@ -241,6 +244,5 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
 global_start_time = time.time()
 train_res, test_res = train_loop(NUM_EPOCHS, train_loader, val_loader, model, criterion, optimizer)
 sys.stdout.flush()
-time.sleep(5)
 
 os.system('sudo shutdown now')
