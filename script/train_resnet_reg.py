@@ -25,7 +25,7 @@ LR_STEP = 2
 LR_FACTOR = 0.2
 NUM_EPOCHS = 10
 LOG_FREQ = 100
-TIME_LIMIT = 10 * 60 * 60
+TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
 WD = 5e-4
 torch.cuda.empty_cache()

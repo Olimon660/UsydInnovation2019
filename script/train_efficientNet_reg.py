@@ -21,13 +21,13 @@ seed = 42
 BATCH_SIZE = 2**6
 NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
-LR_STEP = 3
+LR_STEP = 5
 LR_FACTOR = 0.2
-NUM_EPOCHS = 9
+NUM_EPOCHS = 20
 LOG_FREQ = 50
-TIME_LIMIT = 10 * 60 * 60
+TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
-WD = 0.0001
+WD = 1e-5
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cudnn.benchmark = True
@@ -184,7 +184,9 @@ def test(test_loader, model):
     predicts, targets = inference(test_loader, model)
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
+    rmse = np.sqrt(np.mean(np.square(predicts - targets)))
     print(confusion_matrix(targets, predicts))
+    print(f"val loss: {rmse}")
     return cohen_kappa_score(targets, predicts, weights="quadratic")
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
@@ -242,6 +244,5 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
 global_start_time = time.time()
 train_res, test_res = train_loop(NUM_EPOCHS, train_loader, val_loader, model, criterion, optimizer)
 sys.stdout.flush()
-time.sleep(5)
 
 os.system('sudo shutdown now')
