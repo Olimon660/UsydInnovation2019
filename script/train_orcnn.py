@@ -18,35 +18,38 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from efficientnet_pytorch import EfficientNet
 
 seed = 42
-labels = pd.read_csv("../input/training-labels.csv")
-train_df, val_df = train_test_split(labels, test_size=0.2,stratify=labels['Drscore'], random_state = seed)
-BATCH_SIZE = 2**3
-NUM_WORKERS = 4
+BATCH_SIZE = 2**5
+NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
-LR_STEP = 5
-LR_FACTOR = 0.5
-NUM_EPOCHS = 15
-LOG_FREQ = 200
-TIME_LIMIT = 10 * 60 * 60
+LR_STEP = 2
+LR_FACTOR = 0.2
+NUM_EPOCHS = 10
+LOG_FREQ = 100
+TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
+WD = 5e-4
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+torch.backends.cudnn.benchmark = True
 
+os.system(f'mkdir ../model/{sys.argv[1]}')
 class ORCNN(nn.Module):
     def __init__(self):
         super(ORCNN, self).__init__()
-        self.efnet = EfficientNet.from_pretrained('efficientnet-b4', num_classes=5)
-        self.efnet._fc = nn.Identity()
+        self.basenet = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
         self.or_layers = nn.ModuleList()
         for k in range(4):
-            self.or_layers.append(nn.Linear(1792, 2))
+            self.or_layers.append(nn.Linear(self.basenet.fc.in_features_, 2))
+        self.basenet.fc = nn.Identity()
 
     def forward(self, x, k):
-        x = self.efnet(x)
+        x = self.basenet(x)
         x = self.or_layers[k](x)
 
         return x
 
+print(f"RESIZE:{RESIZE}")
+print(f"WD: {WD}")
 class ImageDataset(Dataset):
     def __init__(self, dataframe, mode):
         assert mode in ['train', 'val', 'test']
@@ -57,7 +60,6 @@ class ImageDataset(Dataset):
         print(f"mode: {mode}, shape: {self.df.shape}")
 
         transforms_list = [
-            transforms.Resize(RESIZE),
             transforms.CenterCrop(RESIZE)
         ]
 
@@ -74,8 +76,6 @@ class ImageDataset(Dataset):
 
         transforms_list.extend([
             transforms.ToTensor(),
-#            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-#                                  std=[0.229, 0.224, 0.225]),
         ])
         self.transforms = transforms.Compose(transforms_list)
 
@@ -84,7 +84,7 @@ class ImageDataset(Dataset):
         filename = self.df['Filename'].values[index]
 
         directory = '../input/Test' if self.mode == 'test' else '../input/output_combined2'
-        sample = Image.open(f'./{directory}/gb_{filename}')
+        sample = Image.open(f'./{directory}/gb_12_{filename}')
 
         assert sample.mode == 'RGB'
 
@@ -223,7 +223,9 @@ def test(test_loader, model):
     predicts, confs, targets = inference(test_loader, model)
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
-    return accuracy_score(targets, predicts), cohen_kappa_score(targets, predicts)
+    print(confusion_matrix(targets, predicts))
+
+    return cohen_kappa_score(targets, predicts)
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
                validate=True):
@@ -231,6 +233,7 @@ def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
 
     test_res = []
     for epoch in trange(1, epochs + 1):
+        print(f"learning rate: {lr_scheduler.get_lr()}")
         start_time = time.time()
         train_acc = train(train_loader, model, criterion, optimizer, epoch, logging=True)
         if has_time_run_out():
@@ -239,16 +242,19 @@ def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
         lr_scheduler.step()
 
         if validate:
-            test_acc = test(test_loader, model)
-            test_res.append(test_acc)
-            print(f"validation score: {test_acc}")
+            test_cohen = test(test_loader, model)
+            test_res.append(test_cohen)
+            print(f"validation score: {test_cohen}")
             sys.stdout.flush()
+        torch.save(model.state_dict(), f"../model/{sys.argv[1]}/{sys.argv[1]}_{epoch}.ptm")
 
     return train_res, test_res
 
 def has_time_run_out():
     return time.time() - global_start_time > TIME_LIMIT - 1000
 
+labels = pd.read_csv("../input/training-labels.csv")
+train_df, val_df = train_test_split(labels, test_size=0.01,stratify=labels['Drscore'], random_state = seed)
 train_dataset = ImageDataset(train_df, mode='train')
 val_dataset = ImageDataset(val_df, mode='val')
 train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
@@ -259,8 +265,6 @@ val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
 model = ORCNN()
-# model = EfficientNet.from_name('efficientnet-b2')
-# model._fc = nn.Linear(model._fc.in_features, 5)
 
 if len(sys.argv) > 2:
 	model.load_state_dict(torch.load(sys.argv[2]))
@@ -274,11 +278,6 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
 
 global_start_time = time.time()
 train_res, test_res = train_loop(NUM_EPOCHS, train_loader, val_loader, model, criterion, optimizer)
-torch.save(model.state_dict(), sys.argv[1])
-predicts, confs, targets = inference(val_loader, model)
-print(classification_report(targets.cpu(), predicts.cpu()))
-print(confusion_matrix(targets.cpu(), predicts.cpu()))
-print(cohen_kappa_score(targets.cpu(), predicts.cpu()))
 sys.stdout.flush()
 time.sleep(5)
 
