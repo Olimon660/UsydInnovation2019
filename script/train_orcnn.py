@@ -18,13 +18,13 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from efficientnet_pytorch import EfficientNet
 
 seed = 42
-BATCH_SIZE = 2**5
+BATCH_SIZE = 2**4
 NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
 NUM_EPOCHS = 10
-LOG_FREQ = 100
+LOG_FREQ = 200
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
 WD = 5e-4
@@ -36,10 +36,10 @@ os.system(f'mkdir ../model/{sys.argv[1]}')
 class ORCNN(nn.Module):
     def __init__(self):
         super(ORCNN, self).__init__()
-        self.basenet = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
+        self.basenet = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
         self.or_layers = nn.ModuleList()
         for k in range(4):
-            self.or_layers.append(nn.Linear(self.basenet.fc.in_features_, 2))
+            self.or_layers.append(nn.Linear(self.basenet.fc.in_features, 2))
         self.basenet.fc = nn.Identity()
 
     def forward(self, x, k):

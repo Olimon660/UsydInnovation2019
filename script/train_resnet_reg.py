@@ -20,14 +20,14 @@ from efficientnet_pytorch import EfficientNet
 seed = 42
 BATCH_SIZE = 2**5
 NUM_WORKERS = 10
-LEARNING_RATE = 5e-5
+LEARNING_RATE = 1e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 10
+NUM_EPOCHS = 6
 LOG_FREQ = 100
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
-WD = 5e-4
+WD = 1e-4
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cudnn.benchmark = True
@@ -231,12 +231,12 @@ model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
 # model = torchvision.models.resnet50(pretrained=True)
 model.fc = nn.Linear(model.fc.in_features, 1)
 
-if len(sys.argv) > 2:
-	model.load_state_dict(torch.load(sys.argv[2]))
 
 model = model.to(device)
 model = nn.DataParallel(model)
 criterion = nn.SmoothL1Loss()
+if len(sys.argv) > 2:
+	model.load_state_dict(torch.load(sys.argv[2]))
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
                                                    gamma=LR_FACTOR)
