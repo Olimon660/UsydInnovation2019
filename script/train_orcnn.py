@@ -18,13 +18,13 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from efficientnet_pytorch import EfficientNet
 
 seed = 42
-BATCH_SIZE = 2**4
+BATCH_SIZE = 2**6
 NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
 NUM_EPOCHS = 10
-LOG_FREQ = 200
+LOG_FREQ = 50
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
 WD = 5e-4
@@ -33,20 +33,6 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cudnn.benchmark = True
 
 os.system(f'mkdir ../model/{sys.argv[1]}')
-class ORCNN(nn.Module):
-    def __init__(self):
-        super(ORCNN, self).__init__()
-        self.basenet = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
-        self.or_layers = nn.ModuleList()
-        for k in range(4):
-            self.or_layers.append(nn.Linear(self.basenet.fc.in_features, 2))
-        self.basenet.fc = nn.Identity()
-
-    def forward(self, x, k):
-        x = self.basenet(x)
-        x = self.or_layers[k](x)
-
-        return x
 
 print(f"RESIZE:{RESIZE}")
 print(f"WD: {WD}")
@@ -56,6 +42,7 @@ class ImageDataset(Dataset):
 
         self.df = dataframe
         self.mode = mode
+        self.label_map = {0:[0,0,0,0],1:[1,0,0,0],2:[1,1,0,0],3:[1,1,1,0],4:[1,1,1,1]}
 
         print(f"mode: {mode}, shape: {self.df.shape}")
 
@@ -79,6 +66,8 @@ class ImageDataset(Dataset):
         ])
         self.transforms = transforms.Compose(transforms_list)
 
+        self.df['Drscore'] = self.df['Drscore'].map(lambda x:self.label_map[x])
+
     def __getitem__(self, index):
         ''' Returns: tuple (sample, target) '''
         filename = self.df['Filename'].values[index]
@@ -93,21 +82,18 @@ class ImageDataset(Dataset):
         if self.mode == 'test':
             return image
         else:
-            return image, self.df['Drscore'].values[index]
+            return image, torch.from_numpy(np.asarray(self.df['Drscore'].values[index]))
 
     def __len__(self):
         return self.df.shape[0]
 
-def GAP(predicts: torch.Tensor, confs: torch.Tensor, targets: torch.Tensor):
+def GAP(predicts: torch.Tensor, targets: torch.Tensor):
     ''' Simplified GAP@1 metric: only one prediction per sample is supported '''
-    assert len(predicts.shape) == 1
-    assert len(confs.shape) == 1
-    assert len(targets.shape) == 1
-    assert predicts.shape == confs.shape and confs.shape == targets.shape
 
-    confs = confs.cpu().numpy()
     predicts = predicts.cpu().numpy()
     targets = targets.cpu().numpy()
+    predicts = np.sum(predicts, axis=1).flatten()
+    targets = np.sum(targets, axis=1).flatten()
 
     res = accuracy_score(targets, predicts)
     return res
@@ -143,26 +129,13 @@ def train(train_loader, model, criterion, optimizer, epoch, logging = True):
     for i, (input_, target) in enumerate(train_loader):
         if i >= num_steps:
             break
-        confs_k = []
-        predicts_k = []
-        loss_k = []
-        for k in range(4):
-            output = model(input_.to(device), k)
-            confs_c, predicts_c = torch.max(output.detach(), dim=1)
-            confs_k.append(confs_c)
-            predicts_k.append(predicts_c)
+        output = model(input_.to(device))
+        loss = criterion(output, target.float().to(device))
 
-            target_k = (target>k).long()
-            loss_c = criterion(output, target_k.to(device))
-            loss_k.append(loss_c)
-            losses.update(loss_c.data.item(), input_.size(0))
+        predicts = (output > 0.5).int()
+        avg_score.update(GAP(predicts.detach(), target))
 
-        loss = sum(loss_k)
-        confs = sum(confs_k)/len(confs_k)
-        predicts = sum(predicts_k)
-
-        avg_score.update(GAP(predicts.detach(), confs, target))
-
+        losses.update(loss.data.item(), input_.size(0))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -187,8 +160,7 @@ def inference(data_loader, model):
     ''' Returns predictions and targets, if any. '''
     model.eval()
 
-    activation = nn.Softmax(dim=1)
-    all_predicts, all_confs, all_targets = [], [], []
+    all_predicts, all_targets = [], []
 
     with torch.no_grad():
         for i, data in enumerate(data_loader):
@@ -197,32 +169,24 @@ def inference(data_loader, model):
             else:
                 input_, target = data, None
 
-            predicts_k = []
-            confs_k = []
-            for k in range(4):
-                output = model(input_.to(device), k)
-                output = activation(output)
-                confs_c, predicts_c = torch.topk(output, 1)
-                predicts_k.append(predicts_c)
-                confs_k.append(confs_c)
-            predicts = sum(predicts_k)
-            confs = sum(confs_k)/len(confs_k)
-            all_confs.append(confs)
+            output = model(input_.to(device))
+            predicts = (output > 0.5).int()
             all_predicts.append(predicts)
 
             if target is not None:
                 all_targets.append(target)
 
     predicts = torch.cat(all_predicts)
-    confs = torch.cat(all_confs)
     targets = torch.cat(all_targets) if len(all_targets) else None
 
-    return predicts, confs, targets
+    return predicts, targets
 
 def test(test_loader, model):
-    predicts, confs, targets = inference(test_loader, model)
-    predicts = predicts.cpu().numpy().flatten()
-    targets = targets.cpu().numpy().flatten()
+    predicts, targets = inference(test_loader, model)
+    predicts = predicts.cpu().numpy()
+    targets = targets.cpu().numpy()
+    predicts = np.sum(predicts, axis=1).flatten()
+    targets = np.sum(targets, axis=1).flatten()
     print(confusion_matrix(targets, predicts))
 
     return cohen_kappa_score(targets, predicts)
@@ -254,6 +218,7 @@ def has_time_run_out():
     return time.time() - global_start_time > TIME_LIMIT - 1000
 
 labels = pd.read_csv("../input/training-labels.csv")
+# labels = labels.sample(n=2000)
 train_df, val_df = train_test_split(labels, test_size=0.01,stratify=labels['Drscore'], random_state = seed)
 train_dataset = ImageDataset(train_df, mode='train')
 val_dataset = ImageDataset(val_df, mode='val')
@@ -264,15 +229,16 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
-model = ORCNN()
+model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
+model.fc = nn.Linear(model.fc.in_features, 4)
 
 if len(sys.argv) > 2:
 	model.load_state_dict(torch.load(sys.argv[2]))
 
 model = model.to(device)
 model = nn.DataParallel(model)
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=0.0001)
+criterion = nn.BCEWithLogitsLoss()
+optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
                                                    gamma=LR_FACTOR)
 

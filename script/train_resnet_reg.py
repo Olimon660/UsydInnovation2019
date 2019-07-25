@@ -18,16 +18,16 @@ from sklearn.metrics import classification_report, accuracy_score, confusion_mat
 from efficientnet_pytorch import EfficientNet
 
 seed = 42
-BATCH_SIZE = 2**5
+BATCH_SIZE = 2**6
 NUM_WORKERS = 10
-LEARNING_RATE = 1e-5
+LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 6
+NUM_EPOCHS = 10
 LOG_FREQ = 100
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
-WD = 1e-4
+WD = 5e-4
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cudnn.benchmark = True
@@ -184,9 +184,9 @@ def test(test_loader, model):
     predicts, targets = inference(test_loader, model)
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
-    rmse = np.sqrt(np.mean(np.square(predicts - targets)))
+    mse = np.mean(np.square(predicts - targets))
     print(confusion_matrix(targets, predicts))
-    print(f"val loss: {rmse}")
+    print(f"val loss: {mse}")
     return cohen_kappa_score(targets, predicts, weights="quadratic")
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
@@ -226,15 +226,15 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
-# model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
-model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
+model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
+# model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
 # model = torchvision.models.resnet50(pretrained=True)
 model.fc = nn.Linear(model.fc.in_features, 1)
 
-
 model = model.to(device)
 model = nn.DataParallel(model)
-criterion = nn.SmoothL1Loss()
+# criterion = nn.SmoothL1Loss()
+criterion = nn.MSELoss()
 if len(sys.argv) > 2:
 	model.load_state_dict(torch.load(sys.argv[2]))
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
