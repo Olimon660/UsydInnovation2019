@@ -19,18 +19,23 @@ from efficientnet_pytorch import EfficientNet
 
 seed = 42
 BATCH_SIZE = 2**6
-NUM_WORKERS = 4
+NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
-LR_STEP = 3
+LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 12
+NUM_EPOCHS = 10
 LOG_FREQ = 50
-TIME_LIMIT = 10 * 60 * 60
+TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
-WD = 0.003
+WD = 5e-4
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(f"RESIZE: {RESIZE}")
+torch.backends.cudnn.benchmark = True
+
+os.system(f'mkdir ../model/{sys.argv[1]}')
+
+print(f"RESIZE:{RESIZE}")
+print(f"WD: {WD}")
 class ImageDataset(Dataset):
     def __init__(self, dataframe, mode):
         assert mode in ['train', 'val', 'test']
@@ -38,8 +43,8 @@ class ImageDataset(Dataset):
         self.df = dataframe
         self.mode = mode
 
+        print(f"mode: {mode}, shape: {self.df.shape}")
         transforms_list = [
-            transforms.Resize(RESIZE),
             transforms.CenterCrop(RESIZE)
         ]
 
@@ -64,7 +69,7 @@ class ImageDataset(Dataset):
         filename = self.df['Filename'].values[index]
 
         directory = '../input/Test' if self.mode == 'test' else '../input/output_combined2'
-        sample = Image.open(f'./{directory}/{filename}')
+        sample = Image.open(f'./{directory}/gb_12_{filename}')
 
         assert sample.mode == 'RGB'
 
@@ -111,7 +116,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logging = True):
 
     lr_str = ''
 
-    for i, (input_, target) in enumerate(tqdm(train_loader)):
+    for i, (input_, target) in enumerate(train_loader):
         if i >= num_steps:
             break
 
@@ -142,13 +147,14 @@ def train_loop(epochs, train_loader, model, criterion, optimizer,
     for epoch in trange(1, epochs + 1):
         print(f"learning rate: {lr_scheduler.get_lr()}")
         train(train_loader, model, criterion, optimizer, epoch, logging=True)
+        torch.save(model.state_dict(), f"../model/{sys.argv[1]}/{sys.argv[1]}_{epoch}.ptm")
         lr_scheduler.step()
 
     return
 
 labels = pd.read_csv("../input/training-labels.csv")
 train_dataset = ImageDataset(labels, mode='train')
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE,
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
                           drop_last=True,
                           num_workers=NUM_WORKERS)
 
@@ -164,6 +170,5 @@ lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
                                                    gamma=LR_FACTOR)
 global_start_time = time.time()
 train_loop(NUM_EPOCHS, train_loader, model, criterion, optimizer)
-torch.save(model.state_dict(), sys.argv[1])
 
 os.system("sudo shutdown now")

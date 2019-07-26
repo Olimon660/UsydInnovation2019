@@ -16,6 +16,7 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, cohen_kappa_score
 from efficientnet_pytorch import EfficientNet
+import torch.nn.functional as F
 
 seed = 42
 BATCH_SIZE = 2**6
@@ -24,7 +25,7 @@ LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
 NUM_EPOCHS = 10
-LOG_FREQ = 100
+LOG_FREQ = 50
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
 WD = 5e-4
@@ -182,11 +183,12 @@ def inference(data_loader, model):
 
 def test(test_loader, model):
     predicts, targets = inference(test_loader, model)
+    val_loss = F.smooth_l1_loss(predicts.cpu(), targets.float())
+    val_loss = val_loss.cpu().numpy().flatten()
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
-    mse = np.mean(np.square(predicts - targets))
     print(confusion_matrix(targets, predicts))
-    print(f"val loss: {mse}")
+    print(f"val loss: {val_loss}")
     return cohen_kappa_score(targets, predicts, weights="quadratic")
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
@@ -233,8 +235,7 @@ model.fc = nn.Linear(model.fc.in_features, 1)
 
 model = model.to(device)
 model = nn.DataParallel(model)
-# criterion = nn.SmoothL1Loss()
-criterion = nn.MSELoss()
+criterion = nn.SmoothL1Loss()
 if len(sys.argv) > 2:
 	model.load_state_dict(torch.load(sys.argv[2]))
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
