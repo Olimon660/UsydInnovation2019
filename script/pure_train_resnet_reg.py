@@ -16,6 +16,7 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, cohen_kappa_score
 from efficientnet_pytorch import EfficientNet
+import torch.nn.functional as F
 
 seed = 42
 BATCH_SIZE = 2**6
@@ -23,7 +24,7 @@ NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 10
+NUM_EPOCHS = 8
 LOG_FREQ = 50
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350

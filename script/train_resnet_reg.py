@@ -19,15 +19,15 @@ from efficientnet_pytorch import EfficientNet
 import torch.nn.functional as F
 
 seed = 42
-BATCH_SIZE = 2**6
+BATCH_SIZE = 2**5
 NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 10
-LOG_FREQ = 50
+NUM_EPOCHS = 8
+LOG_FREQ = 100
 TIME_LIMIT = 100 * 60 * 60
-RESIZE = 350
+RESIZE = 512
 WD = 5e-4
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -71,7 +71,7 @@ class ImageDataset(Dataset):
         filename = self.df['Filename'].values[index]
 
         directory = '../input/Test' if self.mode == 'test' else '../input/output_combined2'
-        sample = Image.open(f'./{directory}/gb_12_{filename}')
+        sample = Image.open(f'./{directory}/gb_12_512_{filename}')
 
         assert sample.mode == 'RGB'
 
