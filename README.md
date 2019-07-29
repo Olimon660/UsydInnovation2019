@@ -6,7 +6,7 @@ Sample usage:
 python predict.py ./input/SampleSubmission.csv ./model/final.ptm ./submission.csv
 ```
 **Note:**
- - This script will not properly run unless all required python packages are installed.
+ - This script will not properly run unless all required python packages are installed. The easiest is to install latest version of `Anaconda` and `PyTorch`.
  - Currently test images are saved after resize and gaussian blur, and these saved processed images are loaded for prediction. Therefore, running this script on new test images will not directly work. I have included the processed images under `Test` folder. The code for resizing and gaussian blur is also included in `process.py` under `input`
 
 ## Folder Structure
