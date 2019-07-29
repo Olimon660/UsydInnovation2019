@@ -6,7 +6,7 @@ Sample usage:
 python predict.py ./input/SampleSubmission.csv ./model/final.ptm ./submission.csv
 ```
 **Note:**
- - This script will not properly run unless all required python packages are installed.
+ - This script will not properly run unless all required python packages are installed. The easiest is to install latest version of `Anaconda` and `PyTorch`.
  - Currently test images are saved after resize and gaussian blur, and these saved processed images are loaded for prediction. Therefore, running this script on new test images will not directly work. I have included the processed images under `Test` folder. The code for resizing and gaussian blur is also included in `process.py` under `input`
 
 ## Folder Structure
@@ -17,6 +17,6 @@ python predict.py ./input/SampleSubmission.csv ./model/final.ptm ./submission.cs
 - `artemis` include sample pbs and singularity build files for using Artemis.
 
 ## Cloud Platform and HPC
-Google Cloud Platform (GCP) virtual machines are mainly used for this competition. A VM instance with 12 CPUs, 48G RAM and 1-4 T4 GPUs (dynamically adjusting) is set up for most of the training work.
+Google Cloud Platform (GCP) virtual machines are used for this competition. A VM instance with 12 CPUs, 48G RAM and 1-4 T4 GPUs (dynamically adjusting) is set up for most of the training work.
 
-In addition to GCP, and thanks to Nathaniel, Artemis is also used for some of the training work. Sample config files are included under `artemis`.
+In addition to GCP, and thanks to Nathaniel, Artemis is also heavily used for some of the training work. Sample config files are included under `artemis`. The V100 GPUs are really powerful!
