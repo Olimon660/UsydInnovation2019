@@ -19,16 +19,17 @@ from efficientnet_pytorch import EfficientNet
 import torch.nn.functional as F
 
 seed = 42
-BATCH_SIZE = 2**5
+BATCH_SIZE = 2**6
 NUM_WORKERS = 10
-LEARNING_RATE = 5e-5
+LEARNING_RATE = 8e-8
 LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 8
-LOG_FREQ = 100
+NUM_EPOCHS = 4
+LOG_FREQ = 50
 TIME_LIMIT = 100 * 60 * 60
-RESIZE = 512
-WD = 5e-4
+RESIZE = 350
+WD = 7e-4
+STARTING_EPOCH = 10 # epoch-1
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cudnn.benchmark = True
@@ -70,8 +71,8 @@ class ImageDataset(Dataset):
         ''' Returns: tuple (sample, target) '''
         filename = self.df['Filename'].values[index]
 
-        directory = '../input/Test' if self.mode == 'test' else '../input/output_combined2'
-        sample = Image.open(f'./{directory}/gb_12_512_{filename}')
+        directory = '../input/Test' if self.mode == 'test' else f'../input/output_combined2_{RESIZE}'
+        sample = Image.open(f'./{directory}/gb_12_{filename}')
 
         assert sample.mode == 'RGB'
 
@@ -142,7 +143,7 @@ def train(train_loader, model, criterion, optimizer, epoch, logging = True):
         end = time.time()
 
         if logging and i % LOG_FREQ == 0:
-            print(f'{epoch} [{i}/{num_steps}]\t'
+            print(f'{STARTING_EPOCH + epoch} [{i}/{num_steps}]\t'
                         f'time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
                         f'loss {losses.val:.4f} ({losses.avg:.4f})\t'
                         f'GAP {avg_score.val:.4f} ({avg_score.avg:.4f})'
@@ -210,7 +211,7 @@ def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
             test_res.append(test_cohen)
             print(f"validation score: {test_cohen}")
 
-        torch.save(model.state_dict(), f"../model/{sys.argv[1]}/{sys.argv[1]}_{epoch}.ptm")
+        torch.save(model.state_dict(), f"../model/{sys.argv[1]}/{sys.argv[1]}_{STARTING_EPOCH+epoch}.ptm")
 
     return train_res, test_res
 
@@ -237,7 +238,9 @@ model = model.to(device)
 model = nn.DataParallel(model)
 criterion = nn.SmoothL1Loss()
 if len(sys.argv) > 2:
-	model.load_state_dict(torch.load(sys.argv[2]))
+    print(f"loading model: {sys.argv[2]}")
+    model.load_state_dict(torch.load(sys.argv[2]))
+
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
                                                    gamma=LR_FACTOR)
