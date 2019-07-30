@@ -17,6 +17,7 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, cohen_kappa_score
 from efficientnet_pytorch import EfficientNet
 import torch.nn.functional as F
+import pretrainedmodels
 
 seed = 42
 BATCH_SIZE = 2**6
@@ -64,8 +65,6 @@ class ImageDataset(Dataset):
 
         transforms_list.extend([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225]),
         ])
         self.transforms = transforms.Compose(transforms_list)
 
@@ -231,10 +230,9 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
-model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
-# model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
+model_name = 'pnasnet5large'
+model = pretrainedmodels.__dict__[model_name](pretrained='imagenet')
 # model = torchvision.models.resnet50(pretrained=True)
-model.fc = nn.Linear(model.fc.in_features, 1)
 
 model = model.to(device)
 model = nn.DataParallel(model)

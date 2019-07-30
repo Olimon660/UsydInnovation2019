@@ -16,18 +16,19 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix, cohen_kappa_score
 from efficientnet_pytorch import EfficientNet
+import torch.nn.functional as F
 
 seed = 42
 BATCH_SIZE = 2**6
 NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
 LR_STEP = 5
-LR_FACTOR = 0.2
+LR_FACTOR = 0.1
 NUM_EPOCHS = 20
 LOG_FREQ = 50
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
-WD = 1e-5
+WD = 5e-4
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 torch.backends.cudnn.benchmark = True
@@ -69,7 +70,7 @@ class ImageDataset(Dataset):
         ''' Returns: tuple (sample, target) '''
         filename = self.df['Filename'].values[index]
 
-        directory = '../input/Test' if self.mode == 'test' else '../input/output_combined2'
+        directory = '../input/Test' if self.mode == 'test' else f'../input/output_combined2_{RESIZE}'
         sample = Image.open(f'./{directory}/gb_12_{filename}')
 
         assert sample.mode == 'RGB'
@@ -182,11 +183,12 @@ def inference(data_loader, model):
 
 def test(test_loader, model):
     predicts, targets = inference(test_loader, model)
+    val_loss = F.smooth_l1_loss(predicts.cpu(), targets.float())
+    val_loss = val_loss.cpu().numpy().flatten()
     predicts = predicts.cpu().numpy().flatten()
     targets = targets.cpu().numpy().flatten()
-    rmse = np.sqrt(np.mean(np.square(predicts - targets)))
     print(confusion_matrix(targets, predicts))
-    print(f"val loss: {rmse}")
+    print(f"val loss: {val_loss}")
     return cohen_kappa_score(targets, predicts, weights="quadratic")
 
 def train_loop(epochs, train_loader, test_loader, model, criterion, optimizer,
@@ -237,6 +239,10 @@ if len(sys.argv) > 2:
 model = model.to(device)
 model = nn.DataParallel(model)
 criterion = nn.SmoothL1Loss()
+if len(sys.argv) > 2:
+    print(f"loading model: {sys.argv[2]}")
+    model.load_state_dict(torch.load(sys.argv[2]))
+
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
 lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
                                                    gamma=LR_FACTOR)

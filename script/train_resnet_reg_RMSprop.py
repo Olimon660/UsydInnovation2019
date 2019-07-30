@@ -24,11 +24,11 @@ NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 10
+NUM_EPOCHS = 15
 LOG_FREQ = 50
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
-WD = 5e-4
+WD = 7e-4
 STARTING_EPOCH = 0 # epoch-1
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -64,8 +64,6 @@ class ImageDataset(Dataset):
 
         transforms_list.extend([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225]),
         ])
         self.transforms = transforms.Compose(transforms_list)
 
@@ -243,8 +241,8 @@ if len(sys.argv) > 2:
     print(f"loading model: {sys.argv[2]}")
     model.load_state_dict(torch.load(sys.argv[2]))
 
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
-lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=LR_STEP,
+optimizer = torch.optim.RMSprop(model.parameters(), lr=LEARNING_RATE, weight_decay=WD)
+lr_scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[2,4,6,8,10],
                                                    gamma=LR_FACTOR)
 
 global_start_time = time.time()

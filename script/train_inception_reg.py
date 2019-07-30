@@ -24,7 +24,7 @@ NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
-NUM_EPOCHS = 10
+NUM_EPOCHS = 8
 LOG_FREQ = 50
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
@@ -64,8 +64,6 @@ class ImageDataset(Dataset):
 
         transforms_list.extend([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225]),
         ])
         self.transforms = transforms.Compose(transforms_list)
 
@@ -231,9 +229,7 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
-model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
-# model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
-# model = torchvision.models.resnet50(pretrained=True)
+model = torchvision.models.inception_v3(pretrained=True, aux_logits=False)
 model.fc = nn.Linear(model.fc.in_features, 1)
 
 model = model.to(device)

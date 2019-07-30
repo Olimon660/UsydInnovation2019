@@ -19,16 +19,16 @@ from efficientnet_pytorch import EfficientNet
 import torch.nn.functional as F
 
 seed = 42
-BATCH_SIZE = 2**6
+BATCH_SIZE = 2**5
 NUM_WORKERS = 10
 LEARNING_RATE = 5e-5
 LR_STEP = 2
 LR_FACTOR = 0.2
 NUM_EPOCHS = 10
-LOG_FREQ = 50
+LOG_FREQ = 100
 TIME_LIMIT = 100 * 60 * 60
 RESIZE = 350
-WD = 5e-4
+WD = 7e-4
 STARTING_EPOCH = 0 # epoch-1
 torch.cuda.empty_cache()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -64,8 +64,6 @@ class ImageDataset(Dataset):
 
         transforms_list.extend([
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                 std=[0.229, 0.224, 0.225]),
         ])
         self.transforms = transforms.Compose(transforms_list)
 
@@ -231,8 +229,7 @@ train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
 val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE,
                         shuffle=False, num_workers=NUM_WORKERS)
 
-model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x8d_wsl')
-# model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
+model = torch.hub.load('facebookresearch/WSL-Images', 'resnext101_32x16d_wsl')
 # model = torchvision.models.resnet50(pretrained=True)
 model.fc = nn.Linear(model.fc.in_features, 1)
 
