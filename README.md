@@ -21,10 +21,11 @@
 ## Prediction Usage
 Sample usage:
 ```shell
-python predict.py ./input/SampleSubmission.csv ./model/final.ptm ./submission.csv
+python predict_norm.py ./input/SampleSubmission.csv ./model/final.ptm ./submission.csv
 ```
 - `predict_EN.py` is used for generating submission files from EfficientNet models.
 - `predict_norm.py` is used for generating submission files with ImageNet color normalisation
+- `predict.py` is used for generating submission files with models without color normalisation
 
 **Note:**
  - This script will not properly run unless all required python packages are installed. The easiest is to install the latest version of `Anaconda` and `PyTorch`.
