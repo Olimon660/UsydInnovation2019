@@ -35,7 +35,7 @@ python predict_norm.py ./input/SampleSubmission.csv ./model/final.ptm ./submissi
 - `script` contains the scripts that are used to tune various models. Please note these scripts are not polished and they serve as a quick-and-dirty role for this competition.
   - sample training commands `python train_densenet_reg.py densenet_5data > ../logs/densenet_5data.log`
 - `logs` contains all the log files from the stdout of the training scripts. With these logs we also have a good version controls of the models.
-- `model` contains the models trained by the training scripts. Models are saved at each epoch for finer tuning. Only the final model is included for this submission.
+- `model` contains the models trained by the training scripts. Models are saved at each epoch for finer tuning. Only one of the models is included for this submission due to space limitation.
 - `input` contains all the data used in this competition. In this submission I only included the processed test images and the preprocessing script.
 - `artemis` includes sample pbs and singularity build files for using Artemis.
 - `submission` includes all historical submission csv files to kaggle. The final two selected submissions are from `SampleSubmission_pooled_5model.csv` and `final_resnet_5data_6.csv`
