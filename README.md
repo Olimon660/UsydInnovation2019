@@ -1,5 +1,12 @@
 # UsydInnovation2019
 
+## Highlights
+- Based on the recently published [WSL ResNext101](https://pytorch.org/hub/facebookresearch_WSL-Images_resnext/) model, I followed an optimised and highly efficient tuning process, which leverages the power of both GCP and Artemis. 
+- I have collected as much external data as possible, as the amount of data is really the key to boost deep learning algorithms' performance. 
+- Many other models are also explored in the competition, including EfficientNet, DenseNet, InceptionV3 etc. 
+- The preprocessing with gaussian blur is also pivotal for enhancing the performance.
+- Preprocessed images are stored and then loaded for training. Compared to preprocessing images everytime in training, this dramatically saves the training time needed.
+
 ## Prediction Usage
 Sample usage:
 ```shell
