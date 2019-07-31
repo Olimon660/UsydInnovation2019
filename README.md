@@ -16,12 +16,16 @@
   - Num of epoches = 9
   - Learning rate = 5e-5, decreasing with a factor of 0.2 at every 2 steps.
   - Adam optimizer with weight decay = 5e-4
+  - Data augmentation and TTA are also used
 
 ## Prediction Usage
 Sample usage:
 ```shell
 python predict.py ./input/SampleSubmission.csv ./model/final.ptm ./submission.csv
 ```
+- `predict_EN.py` is used for generating submission files from EfficientNet models.
+- `predict_norm.py` is used for generating submission files with ImageNet color normalisation
+
 **Note:**
  - This script will not properly run unless all required python packages are installed. The easiest is to install the latest version of `Anaconda` and `PyTorch`.
  - Currently test images are saved after resize and gaussian blur, and these saved processed images are loaded for prediction. Therefore, running this script on new test images will not directly work. I have included the processed images under `Test` folder. The code for resizing and gaussian blur is also included in `process.py` under `input`
