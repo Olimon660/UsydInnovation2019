@@ -2,13 +2,15 @@
 
 ## Highlights
 - Based on the recently published [WSL ResNext101](https://pytorch.org/hub/facebookresearch_WSL-Images_resnext/) model, I followed an optimised and highly efficient tuning process, which leverages the power of both GCP and Artemis. 
-- I have collected as much external data as possible, as the amount of data is really the key to boost deep learning algorithms' performance. 
+  - Models are saved at each epoch, so the best model can be selected without overfitting.
+- I have collected as much external data as possible, as the amount of data is really the key to boost deep learning algorithms' performance.
 - Many other models are also explored in the competition, including EfficientNet, DenseNet, InceptionV3 etc. 
 - The preprocessing with gaussian blur is also pivotal for enhancing the performance.
 - Preprocessed images are stored and then loaded for training. Compared to preprocessing images everytime in training, this dramatically saves the training time needed.
   - The shorter dimension of the image is scaled to 350
   - Gaussian Blur
 - One novel approach is to treat this as an Ordinal Regression (OR) problem. Ideas are brought from [this](https://ieeexplore.ieee.org/document/7780901) study, with a better implementation of the architecture. However, this architecture makes the training a lot slower and the improvement is almost negligible, therefore not much tuning effort is spent on it.
+  - the code is in `script/train_orcnn.py`
 - The final best model is an ensemble of 5 ResNext101 models, treating the problem as **regression** with **SmoothL1Loss**. The best single model has the following parameters:
   - Batch size = 2^6
   - Num of epoches = 9
@@ -26,6 +28,7 @@ python predict.py ./input/SampleSubmission.csv ./model/final.ptm ./submission.cs
 
 ## Folder Structure
 - `script` contains the scripts that are used to tune various models. Please note these scripts are not polished and they serve as a quick-and-dirty role for this competition.
+  - sample training commands `python train_densenet_reg.py densenet_5data > ../logs/densenet_5data.log`
 - `logs` contains all the log files from the stdout of the training scripts. With these logs we also have a good version controls of the models.
 - `model` contains the models trained by the training scripts. Models are saved at each epoch for finer tuning. Only the final model is included for this submission.
 - `input` contains all the data used in this competition. In this submission I only included the processed test images and the preprocessing script.
